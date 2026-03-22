@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+  <title>Fjarr</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" sizes="any">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; font: inherit; }
+
+    body {
+      background: #888;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      padding: 32px 12px 64px;
+      font-family: 'Arial Narrow', 'Helvetica Neue', Arial, sans-serif;
+      font-size: 11px;
+      min-height: 100vh;
+    }
+
+    #remote {
+      width: min(240px, 100%);
+      background: #cccccc;
+      border-radius: 8px 8px 20px 20px;
+      padding: 16px 12px 20px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+      border: 3px solid;
+      border-color: #eee #666 #666 #eee;
+      box-shadow: 3px 3px 0 #333;
+    }
+
+
+    #lcd {
+      width: 100%;
+      background: #2a3a1a;
+      border: 3px solid;
+      border-color: #444 #aaa #aaa #444;
+      padding: 7px 9px;
+      font-family: 'Courier New', monospace;
+      font-size: 11px;
+      line-height: 1.5;
+    }
+    #status       { color: #4a6a28; }
+    #status.ok    { color: #7acc33; }
+    #status.err   { color: #cc3311; }
+    #state        { color: #3a5220; min-height: 1.5em; font-size: 10px; }
+    #state.busy   { color: #cccc33; }
+    #state.done   { color: #7acc33; }
+
+    /* All buttons: light gray hard plastic */
+    button {
+      font-family: 'Arial Narrow', 'Helvetica Neue', Arial, sans-serif;
+      font-size: 10px;
+      font-weight: bold;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      background: #c8c8c8;
+      color: #222;
+      border: 2px solid;
+      border-color: #eee #777 #777 #eee;
+      box-shadow: 2px 2px 0 #444;
+      cursor: pointer;
+      user-select: none;
+      -webkit-user-select: none;
+      touch-action: none;
+    }
+    button:active:not(:disabled) {
+      border-color: #777 #eee #eee #777;
+      box-shadow: 0 0 0;
+      transform: translate(2px, 2px);
+    }
+    button:disabled { color: #999; }
+
+    /* REC button */
+    #rec-btn {
+      width: 48px; height: 48px;
+      border-radius: 50%;
+      background: #dd1100;
+      border-color: #ff4433 #880000 #880000 #ff4433;
+      color: #fff;
+      font-size: 10px;
+      box-shadow: 2px 2px 0 #440000;
+    }
+    #rec-btn:active:not(:disabled) {
+      border-color: #880000 #ff4433 #ff4433 #880000;
+      box-shadow: 0 0 0;
+      transform: translate(2px, 2px);
+    }
+    #rec-btn:disabled {
+      background: #996655;
+      border-color: #bb8866 #553322 #553322 #bb8866;
+      color: #776655;
+      box-shadow: 2px 2px 0 #332211;
+    }
+
+    /* Actions row */
+    #actions { display: none; gap: 5px; width: 100%; }
+    #actions.visible { display: flex; }
+    .btn-test   { flex: 1; padding: 11px 4px; }
+    .btn-save   { flex: 1; padding: 11px 4px; }
+    .btn-cancel { flex: 1; padding: 11px 4px; color: #880000; }
+
+    /* Hard rule groove */
+    .groove {
+      width: 92%;
+      height: 3px;
+      border-top: 1px solid #aaa;
+      border-bottom: 1px solid #eee;
+    }
+
+    /* Top row: REC + Delete */
+    #top-row {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    #del-btn { padding: 6px 10px; font-size: 10px; color: #555; }
+    #del-btn.active { color: #880000; border-color: #cc3322 #660000 #660000 #cc3322; }
+
+    /* Signal list */
+    #list { width: 100%; display: flex; flex-direction: column; gap: 10px; }
+
+    .dev-group {
+      display: flex; flex-direction: column; gap: 4px;
+      padding: 7px;
+      border: 2px solid;
+    }
+    .dev-label {
+      font-size: 8px;
+      font-weight: bold;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      padding-bottom: 4px;
+      border-bottom: 1px solid rgba(0,0,0,0.15);
+    }
+
+    /* 90s remote section palette */
+    .dc0 { background: #c8d4c4; border-color: #ddeedd #7a9978 #7a9978 #ddeedd; } /* sage green */
+    .dc0 .dev-label { color: #3a5e38; }
+    .dc1 { background: #c4ccd8; border-color: #dde2ee #7888aa #7888aa #dde2ee; } /* steel blue */
+    .dc1 .dev-label { color: #3a4a6e; }
+    .dc2 { background: #d8ccc4; border-color: #eedddd #aa8880 #aa8880 #eedddd; } /* dusty red */
+    .dc2 .dev-label { color: #6e3a38; }
+    .dc3 { background: #d4d0bc; border-color: #eeeedd #999970 #999970 #eeeedd; } /* warm yellow */
+    .dc3 .dev-label { color: #5e5a30; }
+    .sig-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; }
+    .sig-btn  { padding: 11px 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .sig-del  { color: #880000 !important; border-color: #cc3322 #660000 #660000 #cc3322 !important; }
+
+    /* Picker */
+    #dev-modal {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,0.55);
+      align-items: center; justify-content: center; z-index: 10;
+    }
+    #dev-modal.visible { display: flex; }
+    #dialog {
+      background: #cccccc;
+      border: 3px solid;
+      border-color: #eee #666 #666 #eee;
+      box-shadow: 4px 4px 0 #333;
+      width: min(220px, calc(100% - 32px));
+    }
+    #dialog-head {
+      background: #bbbbbb;
+      border-bottom: 2px solid;
+      border-color: #eee #888 #888 #eee;
+      padding: 6px 10px;
+      font-size: 9px;
+      font-weight: bold;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      color: #444;
+    }
+    #dialog-body { padding: 8px; display: flex; flex-direction: column; gap: 4px; }
+    .dev-choice { padding: 9px 10px; text-align: left; }
+    .dev-new    { color: #555; }
+  </style>
+</head>
+<body>
+<div id="remote">
+  <div id="top-row">
+    <button id="rec-btn" onclick="startRecording()" disabled>REC</button>
+    <button id="del-btn" onclick="toggleDel()">Delete</button>
+  </div>
+
+  <div id="actions">
+    <button class="btn-test"
+      onpointerdown="testStart()" onpointerup="testStop()"
+      onpointercancel="testStop()" onpointerleave="testStop()">Test</button>
+    <button class="btn-save" onclick="saveSignal()">Save</button>
+    <button class="btn-cancel" onclick="cancelRecording()">Discard</button>
+  </div>
+
+  <div id="lcd">
+    <div id="status">Connecting...</div>
+    <div id="state">&nbsp;</div>
+  </div>
+
+  <div class="groove"></div>
+
+  <div id="list"></div>
+</div>
+
+<div id="dev-modal">
+  <div id="dialog">
+    <div id="dialog-head">Select Device</div>
+    <div id="dialog-body"></div>
+  </div>
+</div>
+
+<script>
+var stateEl   = document.getElementById('state');
+var actionsEl = document.getElementById('actions');
+var recBtn    = document.getElementById('rec-btn');
+var statusEl  = document.getElementById('status');
+var ws        = null;
+var repeatTimer = null;
+var delMode     = false;
+var lastDevices = [];
+
+function send(type, name, device) {
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    var msg = {type: type};
+    if (name   !== undefined) msg.name   = name;
+    if (device !== undefined) msg.device = device;
+    ws.send(JSON.stringify(msg));
+  }
+}
+
+function setConn(ok, text) {
+  statusEl.className = ok ? 'ok' : 'err';
+  statusEl.textContent = text;
+}
+
+function guessProtocol(p) { return p === 12 ? 'RC5' : p === 34 ? 'NEC' : 'RAW'; }
+
+function toggleDel() {
+  delMode = !delMode;
+  document.getElementById('del-btn').classList.toggle('active', delMode);
+  renderList(lastDevices);
+}
+
+function deleteSig(device, name) { send('delete', name, device); }
+function startRecording() {
+  if (recBtn.dataset.state === 'busy') {
+    cancelRecording();
+  } else {
+    recBtn.dataset.state = 'busy';
+    send('record');
+  }
+}
+
+function showActions(on) {
+  actionsEl.classList.toggle('visible', on);
+  document.getElementById('top-row').style.display = on ? 'none' : '';
+}
+
+function saveSignal() {
+  pickDevice(function(device) {
+    var name = prompt('Button name:');
+    if (!name || !name.trim()) return;
+    send('save', name.trim(), device);
+    showActions(false);
+    stateEl.className = ''; stateEl.innerHTML = '&nbsp;';
+  });
+}
+
+function pickDevice(cb) {
+  var body = document.getElementById('dialog-body');
+  body.innerHTML = '';
+  lastDevices.forEach(function(dev) {
+    var btn = document.createElement('button');
+    btn.className = 'dev-choice';
+    btn.textContent = dev.name;
+    btn.onclick = function() { closePick(); cb(dev.name); };
+    body.appendChild(btn);
+  });
+  var nb = document.createElement('button');
+  nb.className = 'dev-choice dev-new';
+  nb.textContent = '+ New device';
+  nb.onclick = function() {
+    closePick();
+    var n = prompt('Device name:');
+    if (n && n.trim()) cb(n.trim());
+  };
+  body.appendChild(nb);
+  document.getElementById('dev-modal').classList.add('visible');
+}
+
+function closePick() { document.getElementById('dev-modal').classList.remove('visible'); }
+
+function cancelRecording() {
+  send('discard');
+  showActions(false);
+  stateEl.className = ''; stateEl.innerHTML = '&nbsp;';
+}
+
+function testStart() { send('test'); repeatTimer = setInterval(function() { send('test'); }, 100); }
+function testStop()  { clearInterval(repeatTimer); repeatTimer = null; }
+function txStart(d, n) { send('tx', n, d); repeatTimer = setInterval(function() { send('tx', n, d); }, 100); }
+function txStop()    { clearInterval(repeatTimer); repeatTimer = null; }
+
+function renderList(devices) {
+  lastDevices = devices;
+  var el = document.getElementById('list');
+  if (!devices.length) { el.innerHTML = ''; return; }
+  el.innerHTML = devices.map(function(dev, i) {
+    var dv = dev.name.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+    var btns = dev.signals.map(function(s) {
+      var n = s.name.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+      if (delMode) {
+        return '<button class="sig-btn sig-del" onclick="deleteSig(\'' + dv + '\',\'' + n + '\')">' + s.name + '</button>';
+      }
+      return '<button class="sig-btn"' +
+        ' onpointerdown="txStart(\'' + dv + '\',\'' + n + '\')"' +
+        ' onpointerup="txStop()" onpointercancel="txStop()" onpointerleave="txStop()">' +
+        s.name + '</button>';
+    }).join('');
+    return '<div class="dev-group dc' + (i % 4) + '"><div class="dev-label">' + dev.name +
+           '</div><div class="sig-grid">' + btns + '</div></div>';
+  }).join('');
+}
+
+function onMessage(evt) {
+  var d = JSON.parse(evt.data);
+  if (d.type === 'idle') {
+    recBtn.disabled = false;
+    recBtn.dataset.state = '';
+    showActions(false);
+    stateEl.className = ''; stateEl.innerHTML = '&nbsp;';
+  } else if (d.type === 'busy') {
+    recBtn.disabled = false;
+    recBtn.dataset.state = 'busy';
+    stateEl.className = 'busy';
+    stateEl.textContent = 'Waiting for signal...';
+    showActions(false);
+  } else if (d.type === 'done') {
+    recBtn.disabled = true;
+    recBtn.dataset.state = '';
+    stateEl.className = 'done';
+    stateEl.textContent = guessProtocol(d.pulses) + ' - ' + d.pulses + ' pulses';
+    showActions(true);
+  } else if (d.type === 'list') {
+    renderList(d.devices || []);
+  }
+}
+
+function connect() {
+  setConn(false, 'Connecting...');
+  recBtn.disabled = true;
+  ws = new WebSocket('ws://' + location.hostname + ':81');
+  var timer = setTimeout(function() {
+    if (ws && ws.readyState !== WebSocket.OPEN) { ws.close(); }
+  }, 5000);
+  ws.onopen = function() {
+    clearTimeout(timer);
+    setConn(true, 'Connected');
+  };
+  ws.onmessage = onMessage;
+  ws.onclose = ws.onerror = function() {
+    clearTimeout(timer);
+    if (!ws) return;
+    ws = null;
+    setConn(false, 'Connecting...');
+    recBtn.disabled = true;
+    setTimeout(connect, 1000);
+  };
+}
+
+connect();
+</script>
+</body>
+</html>

@@ -1,0 +1,8 @@
+[target.riscv32imc-unknown-none-elf]
+runner = "./flash.sh"
+rustflags = [
+    "-C", "link-arg=-Tlinkall.x",
+]
+
+[build]
+target = "riscv32imc-unknown-none-elf"

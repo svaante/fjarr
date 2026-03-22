@@ -1,0 +1,40 @@
+[package]
+name = "esp32-ir"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "esp32-ir"
+harness = false
+
+[dependencies]
+base64            = { version = "0.22", default-features = false }
+critical-section  = "1.2"
+embassy-executor  = { version = "0.7", features = ["executor-thread", "task-arena-size-65536"] }
+embassy-futures   = { version = "0.1" }
+embassy-net       = { version = "0.6",  features = ["tcp", "udp", "dhcpv4", "multicast"] }
+embassy-sync      = "0.7"
+embassy-time      = { version = "0.4" }
+embedded-io-async = "0.6"
+embedded-storage  = "0.3"
+esp-alloc         = "0.6"
+esp-backtrace     = { version = "0.15", features = ["esp32c3", "panic-handler", "println"] }
+esp-hal           = { version = "0.23", features = ["esp32c3", "unstable"] }
+esp-hal-embassy   = { version = "0.6",  features = ["esp32c3", "executors"] }
+esp-println       = { version = "0.13", features = ["esp32c3", "log"] }
+esp-storage       = { version = "0.3", features = ["esp32c3"] }
+esp-wifi          = { version = "0.12", features = ["esp32c3", "wifi", "smoltcp"] }
+heapless          = "0.8"
+sha1_smol         = { version = "1", default-features = false }
+static_cell       = "2"
+
+[build-dependencies]
+flate2 = "1"
+resvg  = "0.44"
+
+[profile.dev]
+opt-level = "s"
+
+[profile.release]
+opt-level = "s"
+debug = false

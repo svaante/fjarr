@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16">
+  <circle cx="8" cy="8" r="5.5" fill="#dd1100"/>
+  <circle cx="8" cy="8" r="5.5" fill="none" stroke="#880000" stroke-width="1.5"/>
+  <path d="M 11.89 4.11 A 5.5 5.5 0 0 0 4.11 11.89"
+        fill="none" stroke="#ff4433" stroke-width="1.5" stroke-linecap="butt"/>
+  <text x="8.1" y="11.5" text-anchor="middle"
+        font-family="Arial Narrow, Arial, sans-serif"
+        font-size="9" font-weight="bold" fill="#fff">F</text>
+</svg>
