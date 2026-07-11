@@ -46,10 +46,12 @@ pub async fn dispatch(typ: &str, name: Option<&str>, device: Option<&str>, out: 
             let mut rec = RECORDING.lock().await;
             if !matches!(&*rec, RecordingState::Capturing { .. }) {
                 *rec = RecordingState::Capturing { timestamps: Timestamps::new() };
+                crate::recording::STATE_CHANGED.signal(());
             }
         }
         "discard" => {
             *RECORDING.lock().await = RecordingState::Idle;
+            crate::recording::STATE_CHANGED.signal(());
         }
         "save" => {
             let Some(name_str) = name else { return };
@@ -67,6 +69,7 @@ pub async fn dispatch(typ: &str, name: Option<&str>, device: Option<&str>, out: 
             };
             if let Some(pulses) = pulses {
                 *RECORDING.lock().await = RecordingState::Idle;
+                crate::recording::STATE_CHANGED.signal(());
                 {
                     let mut sigs = SIGNALS.lock().await;
                     sigs.push(RecordedSignal {

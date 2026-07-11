@@ -1,4 +1,4 @@
-use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, mutex::Mutex};
+use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, mutex::Mutex, signal::Signal};
 use heapless::{String, Vec};
 
 pub type NameStr = String<64>;
@@ -22,3 +22,5 @@ pub static RECORDING: Mutex<CriticalSectionRawMutex, RecordingState> =
 
 pub static SIGNALS: Mutex<CriticalSectionRawMutex, Vec<RecordedSignal, 16>> =
     Mutex::new(Vec::new());
+
+pub static STATE_CHANGED: Signal<CriticalSectionRawMutex, ()> = Signal::new();

@@ -50,6 +50,7 @@ pub async fn ir_rx_task(gpio: AnyPin) {
 
                     println!("ir_rx: captured {} pulse pairs", pulses.len());
                     *rec = RecordingState::Done { pulses };
+                    crate::recording::STATE_CHANGED.signal(());
                 }
             }
         }

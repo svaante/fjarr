@@ -8,13 +8,22 @@ mod ir_tx;
 mod mdns;
 mod recording;
 mod storage;
+mod ui;
 mod ws;
 
 use embassy_executor::Spawner;
 use embassy_net::{Config, Runner, Stack, StackResources};
 use embassy_time::{Duration, Timer};
 use esp_backtrace as _;
-use esp_hal::{gpio::Pin, rng::Rng, timer::systimer::SystemTimer, timer::timg::TimerGroup};
+use esp_hal::{
+    clock::CpuClock,
+    gpio::Pin,
+    interrupt::{software::SoftwareInterruptControl, Priority},
+    rng::Rng,
+    timer::systimer::SystemTimer,
+    timer::timg::TimerGroup,
+};
+use esp_hal_embassy::InterruptExecutor;
 use esp_println::println;
 use esp_wifi::wifi::{
     ClientConfiguration, Configuration, WifiController, WifiEvent, WifiStaDevice,
@@ -28,12 +37,14 @@ const PASSWORD: &str = env!("WIFI_PASSWORD");
 static WIFI_INIT: StaticCell<EspWifiController<'static>> = StaticCell::new();
 static RESOURCES: StaticCell<StackResources<8>> = StaticCell::new();
 static STACK: StaticCell<Stack<'static>> = StaticCell::new();
+// NOTE: High-priority executor keeps IR edge timestamps accurate
+static IR_RX_EXECUTOR: StaticCell<InterruptExecutor<0>> = StaticCell::new();
 
 #[esp_hal_embassy::main]
 async fn main(spawner: Spawner) {
     esp_alloc::heap_allocator!(96 * 1024);
 
-    let p = esp_hal::init(esp_hal::Config::default());
+    let p = esp_hal::init(esp_hal::Config::default().with_cpu_clock(CpuClock::_80MHz));
     esp_hal_embassy::init(TimerGroup::new(p.TIMG0).timer0);
 
     {
@@ -59,7 +70,13 @@ async fn main(spawner: Spawner) {
     );
     let stack: &'static Stack<'static> = STACK.init(stack);
 
-    spawner.spawn(ir_rx::ir_rx_task(p.GPIO0.degrade())).unwrap();
+    let sw_ints = SoftwareInterruptControl::new(p.SW_INTERRUPT);
+    let ir_rx_executor = IR_RX_EXECUTOR.init(InterruptExecutor::new(sw_ints.software_interrupt0));
+    let ir_rx_spawner = ir_rx_executor.start(Priority::Priority2);
+    ir_rx_spawner
+        .spawn(ir_rx::ir_rx_task(p.GPIO0.degrade()))
+        .unwrap();
+
     spawner.spawn(ir_tx::ir_tx_task(p.GPIO1.degrade(), p.RMT)).unwrap();
 
     spawner.spawn(connection(wifi_controller)).unwrap();
@@ -71,6 +88,7 @@ async fn main(spawner: Spawner) {
         spawner.spawn(http::http_task(stack, i)).unwrap();
     }
     spawner.spawn(ws::ws_task(stack)).unwrap();
+    spawner.spawn(ui::watchdog(p.GPIO7.degrade(), p.LEDC, stack)).unwrap();
 
     println!("main: waiting for wifi...");
     loop {
@@ -99,7 +117,7 @@ async fn connection(mut controller: WifiController<'static>) {
         }
 
         controller
-            .set_power_saving(esp_wifi::config::PowerSaveMode::None)
+            .set_power_saving(esp_wifi::config::PowerSaveMode::Maximum)
             .unwrap();
 
         println!("wifi: connecting to {}...", SSID);

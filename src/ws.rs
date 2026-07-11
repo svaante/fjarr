@@ -3,7 +3,6 @@ use embedded_io_async::Write;
 
 use embassy_futures::select::{select, Either};
 use embassy_net::{tcp::TcpSocket, Stack};
-use embassy_time::{Duration, Timer};
 use esp_println::println;
 use heapless::String;
 use static_cell::StaticCell;
@@ -134,7 +133,7 @@ async fn ws_session(socket: &mut TcpSocket<'_>, key: &str) {
     loop {
         match select(
             socket.read(&mut buf),
-            Timer::after(Duration::from_millis(50)),
+            crate::recording::STATE_CHANGED.wait(),
         )
         .await
         {
