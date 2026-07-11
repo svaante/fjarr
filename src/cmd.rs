@@ -2,7 +2,10 @@ use core::fmt::Write as FmtWrite;
 use heapless::{String, Vec};
 
 use crate::ir_tx;
-use crate::recording::{NameStr, PulsePairs, RecordedSignal, RecordingState, Timestamps, RECORDING, SIGNALS};
+use crate::recording::{
+    NameStr, PulsePairs, RecordedSignal, RecordingState, Timestamps, IR_RX_NOTIFY, RECORDING,
+    SIGNALS, WS_NOTIFY,
+};
 
 async fn list_json(out: &mut String<1200>) {
     let sigs = SIGNALS.lock().await;
@@ -45,13 +48,16 @@ pub async fn dispatch(typ: &str, name: Option<&str>, device: Option<&str>, out: 
         "record" => {
             let mut rec = RECORDING.lock().await;
             if !matches!(&*rec, RecordingState::Capturing { .. }) {
-                *rec = RecordingState::Capturing { timestamps: Timestamps::new() };
-                crate::recording::STATE_CHANGED.signal(());
+                *rec = RecordingState::Capturing {
+                    timestamps: Timestamps::new(),
+                };
+                IR_RX_NOTIFY.signal(());
+                WS_NOTIFY.signal(());
             }
         }
         "discard" => {
             *RECORDING.lock().await = RecordingState::Idle;
-            crate::recording::STATE_CHANGED.signal(());
+            WS_NOTIFY.signal(());
         }
         "save" => {
             let Some(name_str) = name else { return };
@@ -69,7 +75,7 @@ pub async fn dispatch(typ: &str, name: Option<&str>, device: Option<&str>, out: 
             };
             if let Some(pulses) = pulses {
                 *RECORDING.lock().await = RecordingState::Idle;
-                crate::recording::STATE_CHANGED.signal(());
+                WS_NOTIFY.signal(());
                 {
                     let mut sigs = SIGNALS.lock().await;
                     sigs.push(RecordedSignal {

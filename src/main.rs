@@ -77,7 +77,9 @@ async fn main(spawner: Spawner) {
         .spawn(ir_rx::ir_rx_task(p.GPIO0.degrade()))
         .unwrap();
 
-    spawner.spawn(ir_tx::ir_tx_task(p.GPIO1.degrade(), p.RMT)).unwrap();
+    spawner
+        .spawn(ir_tx::ir_tx_task(p.GPIO1.degrade(), p.RMT))
+        .unwrap();
 
     spawner.spawn(connection(wifi_controller)).unwrap();
     spawner.spawn(net_task(runner)).unwrap();
@@ -88,7 +90,9 @@ async fn main(spawner: Spawner) {
         spawner.spawn(http::http_task(stack, i)).unwrap();
     }
     spawner.spawn(ws::ws_task(stack)).unwrap();
-    spawner.spawn(ui::watchdog(p.GPIO7.degrade(), p.LEDC, stack)).unwrap();
+    spawner
+        .spawn(ui::watchdog(p.GPIO7.degrade(), p.LEDC, stack))
+        .unwrap();
 
     println!("main: waiting for wifi...");
     loop {

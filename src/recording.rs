@@ -23,4 +23,5 @@ pub static RECORDING: Mutex<CriticalSectionRawMutex, RecordingState> =
 pub static SIGNALS: Mutex<CriticalSectionRawMutex, Vec<RecordedSignal, 16>> =
     Mutex::new(Vec::new());
 
-pub static STATE_CHANGED: Signal<CriticalSectionRawMutex, ()> = Signal::new();
+pub static IR_RX_NOTIFY: Signal<CriticalSectionRawMutex, ()> = Signal::new();
+pub static WS_NOTIFY: Signal<CriticalSectionRawMutex, ()> = Signal::new();

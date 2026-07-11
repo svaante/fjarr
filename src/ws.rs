@@ -7,7 +7,7 @@ use esp_println::println;
 use heapless::String;
 use static_cell::StaticCell;
 
-use crate::recording::{RecordingState, RECORDING};
+use crate::recording::{RecordingState, RECORDING, WS_NOTIFY};
 
 static WS_RX_A: StaticCell<[u8; 512]> = StaticCell::new();
 static WS_TX_A: StaticCell<[u8; 2048]> = StaticCell::new();
@@ -131,12 +131,7 @@ async fn ws_session(socket: &mut TcpSocket<'_>, key: &str) {
 
     let mut buf = [0u8; 256];
     loop {
-        match select(
-            socket.read(&mut buf),
-            crate::recording::STATE_CHANGED.wait(),
-        )
-        .await
-        {
+        match select(socket.read(&mut buf), WS_NOTIFY.wait()).await {
             Either::First(Ok(0)) | Either::First(Err(_)) => break,
             Either::First(Ok(n)) => {
                 if let Some((opcode, payload)) = parse_frame(&mut buf, n) {
