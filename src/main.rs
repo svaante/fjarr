@@ -2,13 +2,13 @@
 #![no_main]
 
 mod cmd;
+mod heartbeat;
 mod http;
 mod ir_rx;
 mod ir_tx;
 mod mdns;
 mod recording;
 mod storage;
-mod ui;
 mod ws;
 
 use embassy_executor::Spawner;
@@ -20,6 +20,8 @@ use esp_hal::{
     gpio::Pin,
     interrupt::{software::SoftwareInterruptControl, Priority},
     rng::Rng,
+    rtc_cntl::{Rtc, RwdtStage, RwdtStageAction},
+    time::ExtU64,
     timer::systimer::SystemTimer,
     timer::timg::TimerGroup,
 };
@@ -46,6 +48,11 @@ async fn main(spawner: Spawner) {
 
     let p = esp_hal::init(esp_hal::Config::default().with_cpu_clock(CpuClock::_80MHz));
     esp_hal_embassy::init(TimerGroup::new(p.TIMG0).timer0);
+
+    let mut rwdt = Rtc::new(p.LPWR).rwdt;
+    rwdt.enable();
+    rwdt.set_timeout(RwdtStage::Stage0, 8u64.secs());
+    rwdt.set_stage_action(RwdtStage::Stage0, RwdtStageAction::ResetSystem);
 
     {
         let saved = storage::load();
@@ -91,7 +98,7 @@ async fn main(spawner: Spawner) {
     }
     spawner.spawn(ws::ws_task(stack)).unwrap();
     spawner
-        .spawn(ui::watchdog(p.GPIO7.degrade(), p.LEDC, stack))
+        .spawn(heartbeat::watchdog(p.GPIO7.degrade(), p.LEDC, stack, rwdt))
         .unwrap();
 
     println!("main: waiting for wifi...");

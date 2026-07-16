@@ -2,7 +2,7 @@ use core::fmt::Write as FmtWrite;
 use embedded_io_async::Write;
 
 use embassy_net::{tcp::TcpSocket, Stack};
-use embassy_time::Duration;
+use embassy_time::{Duration, Instant};
 use esp_println::println;
 use heapless::String;
 use static_cell::StaticCell;
@@ -81,6 +81,14 @@ async fn handle(socket: &mut TcpSocket<'_>, buf: &[u8]) {
 
     if route.starts_with("apple-touch-icon") && route.ends_with(".png") {
         send_response(socket, "200 OK", "image/png", APPLE_TOUCH_ICON).await;
+        return;
+    }
+
+    if route == "uptime" {
+        let secs = Instant::now().as_secs();
+        let mut out: String<32> = String::new();
+        write!(out, "{}", secs).ok();
+        send_response(socket, "200 OK", "text/plain", out.as_bytes()).await;
         return;
     }
 

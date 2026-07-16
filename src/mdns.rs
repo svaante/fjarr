@@ -2,13 +2,16 @@ use embassy_net::{
     udp::{PacketMetadata, UdpSocket},
     IpAddress, IpEndpoint, Stack,
 };
-use embassy_time::{Duration, Timer};
+use embassy_time::{with_timeout, Duration, Timer};
 use esp_println::println;
 use static_cell::StaticCell;
 
 pub const HOSTNAME: &str = "fjarr";
 const MDNS_PORT: u16 = 5353;
 const TTL_SECS: u32 = 4500;
+// Re-announce interval; keeps clients from losing us when their cache expires
+// and ensures we recover quickly after a reconnect detection cycle.
+const ANNOUNCE_INTERVAL: Duration = Duration::from_secs(60);
 
 fn encode_name(labels: &[&str], buf: &mut [u8], mut pos: usize) -> usize {
     for label in labels {
@@ -114,20 +117,8 @@ static TX_BUF: StaticCell<[u8; 512]> = StaticCell::new();
 pub async fn mdns_task(stack: &'static Stack<'static>) {
     stack.wait_config_up().await;
 
-    let ip = match stack.config_v4() {
-        Some(cfg) => cfg.address.address().octets(),
-        None => return,
-    };
-
     let mdns_group = IpAddress::v4(224, 0, 0, 251);
-
-    match stack.join_multicast_group(mdns_group) {
-        Ok(_) => println!("mdns: joined multicast group 224.0.0.251"),
-        Err(e) => {
-            println!("mdns: multicast join failed: {:?}", e);
-            return;
-        }
-    }
+    let mdns_ep = IpEndpoint::new(mdns_group, MDNS_PORT);
 
     let mut socket = UdpSocket::new(
         *stack,
@@ -139,33 +130,55 @@ pub async fn mdns_task(stack: &'static Stack<'static>) {
     socket.bind(MDNS_PORT).unwrap();
     println!("mdns: listening on UDP port {}", MDNS_PORT);
 
-    let mdns_ep = IpEndpoint::new(mdns_group, MDNS_PORT);
-
-    let mut out = [0u8; 256];
-    let n = build_response(ip, &mut out);
-    socket.send_to(&out[..n], mdns_ep).await.ok();
-
-    println!(
-        "mdns: announced {}.local -> {}.{}.{}.{}",
-        HOSTNAME, ip[0], ip[1], ip[2], ip[3]
-    );
-
     let mut pkt = [0u8; 512];
     let mut out = [0u8; 256];
+    // Track last seen IP; None means disconnected.
+    let mut last_ip: Option<[u8; 4]> = None;
+
     loop {
-        match socket.recv_from(&mut pkt).await {
-            Ok((n, src)) => {
-                if let Some(rn) = handle_query(&pkt[..n], ip, &mut out) {
-                    println!(
-                        "mdns: query from {:?} - replying with {}.local",
-                        src, HOSTNAME
-                    );
-                    socket.send_to(&out[..rn], mdns_ep).await.ok();
+        let ip = stack.config_v4().map(|c| c.address.address().octets());
+
+        if ip != last_ip {
+            last_ip = ip;
+            if let Some(ip) = ip {
+                // Re-join multicast; membership is lost when the WiFi
+                // interface goes down and the driver resets its group table.
+                match stack.join_multicast_group(mdns_group) {
+                    Ok(_) => println!("mdns: joined multicast group 224.0.0.251"),
+                    Err(e) => println!("mdns: multicast join failed: {:?}", e),
+                }
+                let n = build_response(ip, &mut out);
+                socket.send_to(&out[..n], mdns_ep).await.ok();
+                println!(
+                    "mdns: announced {}.local -> {}.{}.{}.{}",
+                    HOSTNAME, ip[0], ip[1], ip[2], ip[3]
+                );
+            }
+        }
+
+        match with_timeout(ANNOUNCE_INTERVAL, socket.recv_from(&mut pkt)).await {
+            Ok(Ok((n, src))) => {
+                if let Some(ip) = last_ip {
+                    if let Some(rn) = handle_query(&pkt[..n], ip, &mut out) {
+                        println!(
+                            "mdns: query from {:?} - replying with {}.local",
+                            src, HOSTNAME
+                        );
+                        socket.send_to(&out[..rn], mdns_ep).await.ok();
+                    }
                 }
             }
-            Err(e) => {
+            Ok(Err(e)) => {
                 println!("mdns: recv error: {:?}", e);
-                Timer::after(Duration::from_millis(10)).await;
+                Timer::after(Duration::from_millis(100)).await;
+            }
+            Err(_timeout) => {
+                // Periodic re-announce so clients with stale caches recover.
+                if let Some(ip) = last_ip {
+                    let n = build_response(ip, &mut out);
+                    socket.send_to(&out[..n], mdns_ep).await.ok();
+                    println!("mdns: re-announced {}.local", HOSTNAME);
+                }
             }
         }
     }

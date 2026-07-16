@@ -34,7 +34,9 @@ pub async fn ir_rx_task(gpio: AnyPin) {
 
                     // Lowpass
                     if let Some(&last) = timestamps.last() {
-                        if now.wrapping_sub(last) < MIN_PULSE_US { continue; }
+                        if now.wrapping_sub(last) < MIN_PULSE_US {
+                            continue;
+                        }
                     }
 
                     // Check sequence of SPACEs MARKs
