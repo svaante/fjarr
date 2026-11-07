@@ -3,6 +3,7 @@ use embedded_io_async::Write;
 
 use embassy_futures::select::{select, Either};
 use embassy_net::{tcp::TcpSocket, Stack};
+use embassy_time::{with_timeout, Duration};
 use esp_println::println;
 use heapless::String;
 use static_cell::StaticCell;
@@ -163,6 +164,11 @@ pub async fn ws_task(stack: &'static Stack<'static>) {
 
     let mut sa = TcpSocket::new(*stack, WS_RX_A.init([0u8; 512]), WS_TX_A.init([0u8; 2048]));
     let mut sb = TcpSocket::new(*stack, WS_RX_B.init([0u8; 512]), WS_TX_B.init([0u8; 2048]));
+    // Detect and abort half-open peers (sleeping phones, preconnects).
+    for s in [&mut sa, &mut sb] {
+        s.set_keep_alive(Some(Duration::from_secs(10)));
+        s.set_timeout(Some(Duration::from_secs(30)));
+    }
     let mut req = [0u8; 512];
 
     // Wait for first client on either socket.
@@ -172,7 +178,10 @@ pub async fn ws_task(stack: &'static Stack<'static>) {
     }
 
     loop {
-        let n = sa.read(&mut req).await.unwrap_or(0);
+        let n = match with_timeout(Duration::from_secs(3), sa.read(&mut req)).await {
+            Ok(Ok(n)) => n,
+            _ => 0,
+        };
         let text = core::str::from_utf8(&req[..n]).unwrap_or("");
         let maybe_sec_key = text
             .lines()
