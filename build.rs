@@ -31,6 +31,12 @@ fn make_touch_icon(out: &PathBuf) {
 fn main() {
     println!("cargo:rerun-if-changed=src/index.html");
     println!("cargo:rerun-if-changed=src/favicon.svg");
+    println!("cargo:rerun-if-changed=keys/ota.pub");
+
+    match fs::metadata("keys/ota.pub") {
+        Ok(m) if m.len() == 32 => {}
+        _ => panic!("keys/ota.pub missing or not a raw 32 byte ed25519 key; run ./ota.sh keygen"),
+    }
 
     let ssid = env::var("WIFI_SSID").unwrap();
     let password = env::var("WIFI_PASSWORD").unwrap();

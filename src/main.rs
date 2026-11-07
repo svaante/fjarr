@@ -7,6 +7,7 @@ mod http;
 mod ir_rx;
 mod ir_tx;
 mod mdns;
+mod ota;
 mod recording;
 mod storage;
 mod ws;
@@ -37,7 +38,7 @@ const SSID: &str = env!("WIFI_SSID");
 const PASSWORD: &str = env!("WIFI_PASSWORD");
 
 static WIFI_INIT: StaticCell<EspWifiController<'static>> = StaticCell::new();
-static RESOURCES: StaticCell<StackResources<8>> = StaticCell::new();
+static RESOURCES: StaticCell<StackResources<10>> = StaticCell::new();
 static STACK: StaticCell<Stack<'static>> = StaticCell::new();
 // NOTE: High-priority executor keeps IR edge timestamps accurate
 static IR_RX_EXECUTOR: StaticCell<InterruptExecutor<0>> = StaticCell::new();
@@ -51,7 +52,7 @@ async fn main(spawner: Spawner) {
 
     let mut rwdt = Rtc::new(p.LPWR).rwdt;
     rwdt.enable();
-    rwdt.set_timeout(RwdtStage::Stage0, 8u64.secs());
+    rwdt.set_timeout(RwdtStage::Stage0, 15u64.secs());
     rwdt.set_stage_action(RwdtStage::Stage0, RwdtStageAction::ResetSystem);
 
     {
@@ -97,6 +98,7 @@ async fn main(spawner: Spawner) {
         spawner.spawn(http::http_task(stack, i)).unwrap();
     }
     spawner.spawn(ws::ws_task(stack)).unwrap();
+    spawner.spawn(ota::ota_task(stack)).unwrap();
     spawner
         .spawn(heartbeat::watchdog(p.GPIO7.degrade(), p.LEDC, stack, rwdt))
         .unwrap();

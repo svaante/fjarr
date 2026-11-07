@@ -33,7 +33,7 @@ async fn send_response_gzip(socket: &mut TcpSocket<'_>, body: &[u8]) {
     socket.write_all(body).await.ok();
 }
 
-async fn send_response(socket: &mut TcpSocket<'_>, status: &str, content_type: &str, body: &[u8]) {
+pub(crate) async fn send_response(socket: &mut TcpSocket<'_>, status: &str, content_type: &str, body: &[u8]) {
     let mut cl: String<8> = String::new();
     write!(cl, "{}", body.len()).ok();
 
